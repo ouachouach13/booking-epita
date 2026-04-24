@@ -2,6 +2,7 @@ name: pullrequest
 on:
   pull_request:
 
+
 permissions:
   actions: read
   security-events: write
