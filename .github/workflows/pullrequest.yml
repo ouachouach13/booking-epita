@@ -18,7 +18,7 @@ jobs:
           fetch-depth: 0
 
       - name: run osv-scanner (after PR)
-        uses: google/osv-scanner-action/osv-scanner-action@main
+        uses: google/osv-scanner-action/osv-scanner-action@7222d1c7ee4f96d71d883e0d3c603f1e1705eca9
         with:
           scan-args: |-
             --format=json
@@ -31,7 +31,7 @@ jobs:
           git checkout ${{ github.event.pull_request.base.sha }}
 
       - name: run osv-scanner (before PR)
-        uses: google/osv-scanner-action/osv-scanner-action@main
+        uses: google/osv-scanner-action/osv-scanner-action@7222d1c7ee4f96d71d883e0d3c603f1e1705eca9
         with:
           scan-args: |-
             --format=json
@@ -40,7 +40,7 @@ jobs:
         continue-on-error: true
 
       - name: Compare analysis
-        uses: google/osv-scanner-action/osv-reporter-action@main
+        uses: google/osv-scanner-action/osv-reporter-action@7222d1c7ee4f96d71d883e0d3c603f1e1705eca9
         with:
           scan-args: |-
             --new=DependenciesAnalysisAfter.json
