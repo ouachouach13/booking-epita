@@ -1,0 +1,73 @@
+name: pullrequest
+on:
+  pull_request:
+
+permissions:
+  actions: read
+  security-events: write
+  contents: read
+
+jobs:
+  DependenciesAnalysis:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: run osv-scanner (after PR)
+        uses: google/osv-scanner-action/osv-scanner-action@main
+        with:
+          scan-args: |-
+            --format sarif
+            --output DependenciesAnalysisAfter.sarif
+            ./
+        continue-on-error: true
+
+      - name: checkout baseline commit
+        run: |
+          git checkout ${{ github.event.pull_request.base.sha }}
+
+      - name: run osv-scanner (before PR)
+        uses: google/osv-scanner-action/osv-scanner-action@main
+        with:
+          scan-args: |-
+            --format sarif
+            --output DependenciesAnalysisBefore.sarif
+            ./
+        continue-on-error: true
+
+      - name: Compare analysis
+        uses: google/osv-scanner-action/osv-reporter-action@main
+        with:
+          scan-args: |-
+            --new=DependenciesAnalysisAfter.sarif
+            --old=DependenciesAnalysisBefore.sarif
+            --output=DependenciesAnalysisDiff.sarif
+
+      - name: Save differential report
+        uses: actions/upload-artifact@v4
+        with:
+          name: DependenciesAnalysisDiff
+          path: DependenciesAnalysisDiff.sarif
+
+  SourceCodeAnalysis:
+    runs-on: ubuntu-latest
+    container:
+      image: returntocorp/semgrep:latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run differential analysis with semgrep
+        run: semgrep scan --config .semgrep --sarif --output SourceCodeAnalysisDiff.sarif --baseline-commit ${{ github.event.pull_request.base.sha }}
+        continue-on-error: true
+
+      - name: Save differential report
+        uses: actions/upload-artifact@v4
+        with:
+          name: SourceCodeAnalysisDiff
+          path: SourceCodeAnalysisDiff.sarif
