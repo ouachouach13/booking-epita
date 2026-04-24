@@ -1,4 +1,5 @@
 name: pullrequest
+
 on:
   pull_request:
 
@@ -16,25 +17,25 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: run osv-scanner after PR
+      - name: run osv-scanner (after PR)
         uses: google/osv-scanner-action/osv-scanner-action@main
         with:
           scan-args: |-
-            --format sarif
-            --output DependenciesAnalysisFull.sarif
+            --format=json
+            --output=DependenciesAnalysisAfter.json
             ./
         continue-on-error: true
 
-      - name: Checkout baseline commit
+      - name: checkout baseline commit
         run: |
           git checkout ${{ github.event.pull_request.base.sha }}
 
-      - name: run osv-scanner before PR
+      - name: run osv-scanner (before PR)
         uses: google/osv-scanner-action/osv-scanner-action@main
         with:
           scan-args: |-
-            --format sarif
-            --output DependenciesAnalysisBaseline.sarif
+            --format=json
+            --output=DependenciesAnalysisBefore.json
             ./
         continue-on-error: true
 
@@ -42,12 +43,14 @@ jobs:
         uses: google/osv-scanner-action/osv-reporter-action@main
         with:
           scan-args: |-
-            --new DependenciesAnalysisFull.sarif
-            --old DependenciesAnalysisBaseline.sarif
-            --output DependenciesAnalysisDiff.sarif
-        continue-on-error: true
+            --new=DependenciesAnalysisAfter.json
+            --old=DependenciesAnalysisBefore.json
+            --output=DependenciesAnalysisDiff.sarif
+            --gh-annotations=false
+            --fail-on-vuln=true
 
-      - name: Save differential report as artifact
+      - name: Save differential report
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: DependenciesAnalysisDiff
@@ -64,16 +67,11 @@ jobs:
           fetch-depth: 0
 
       - name: Run differential analysis with semgrep
-        run: |
-          semgrep scan \
-            --config .semgrep \
-            --sarif \
-            --output SourceCodeAnalysis.sarif \
-            --baseline-commit ${{ github.event.pull_request.base.sha }}
-        continue-on-error: true
+        run: semgrep scan --config .semgrep --error --sarif --output SourceCodeAnalysisDiff.sarif --baseline-commit ${{ github.event.pull_request.base.sha }} .
 
-      - name: Save differential report as artifact
+      - name: Save differential report
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: SourceCodeAnalysis
-          path: SourceCodeAnalysis.sarif
+          name: SourceCodeAnalysisDiff
+          path: SourceCodeAnalysisDiff.sarif
