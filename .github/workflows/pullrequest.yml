@@ -1,0 +1,75 @@
+name: pullrequest
+on:
+  pull_request:
+
+permissions:
+  actions: read
+  security-events: write
+  contents: read
+
+jobs:
+  DependenciesAnalysis:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: run osv-scanner after PR
+        uses: google/osv-scanner-action/osv-scanner-action@main
+        with:
+          scan-args: |-
+            --format sarif
+            --output DependenciesAnalysisFull.sarif
+            ./
+        continue-on-error: true
+
+      - name: Checkout baseline commit
+        run: |
+          git checkout ${{ github.event.pull_request.base.sha }}
+
+      - name: run osv-scanner before PR
+        uses: google/osv-scanner-action/osv-scanner-action@main
+        with:
+          scan-args: |-
+            --format sarif
+            --output DependenciesAnalysisBaseline.sarif
+            ./
+        continue-on-error: true
+
+      - name: Compare analysis
+        uses: google/osv-scanner-action/osv-reporter-action@main
+        with:
+          scan-args: |-
+            --new DependenciesAnalysisFull.sarif
+            --old DependenciesAnalysisBaseline.sarif
+            --output DependenciesAnalysisDiff.sarif
+        continue-on-error: true
+
+      - name: Save differential report as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DependenciesAnalysisDiff
+          path: DependenciesAnalysisDiff.sarif
+
+  SourceCodeAnalysis:
+    runs-on: ubuntu-latest
+    container:
+      image: returntocorp/semgrep:latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run differential analysis with semgrep
+        run: |
+          semgrep scan \
+            --config .semgrep \
+            --sarif \
+            --output SourceCodeAnalysis.sarif \
+            --baseline-commit ${{ github.event.pull_request.base.sha }}
+        continue-on-error: true
+
+      - name: Save differential report as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SourceCodeAnalysis
+          path: SourceCodeAnalysis.sarif
